@@ -1,0 +1,1 @@
+-k 100 --kSd 1 --kMin 18 --kMax 201 --geneLen 2001 -a 2 -b 2 -z 2001 --zetaSd 1001 --zetaMax 2501 --zetaMin 1501 -n 500 -s 34 --addSpace 18 -t 10 --outputDir results
