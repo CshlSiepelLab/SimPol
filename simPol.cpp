@@ -226,25 +226,30 @@ int main(int argc, char **argv)
         pos_matrix.insert(pos_matrix.begin() + i, sites);
     }
 
-    /* Construct a probability matrix to control RNAP movement
-     * Generate pause sites located from kmin to kmax with sd = ksd
-     */
     vector<vector<double>> prob_matrix(total_cells, vector<double>(total_sites, 0));
     {
+        /* Construct a probability matrix to control RNAP movement
+         * Generate pause sites located from kmin to kmax with sd = ksd
+         */
         vector<double> y;
         Generator y_distribution(k, ksd, k_min, k_max);
+        for (int i = 0; i < total_cells; i++)
+        {
+            y.push_back(round(y_distribution()));
+        }
 
         /* A matrix of probabilities to control transition from state to state
          * cols are cells, rows are positions
          */
         Generator zv_distribution(zeta, zeta_sd, zeta_min, zeta_max);
+#pragma omp parallel for collapse(2)
         for (int i = 0; i < total_cells; i++)
         {
             for (int j = 0; j < total_sites; j++)
             {
-                prob_matrix[i][j] = j == 0                         ? alpha * delta_t
-                                    : j == round(y_distribution()) ? beta * delta_t
-                                                                   : zv_distribution() * delta_t;
+                prob_matrix[i][j] = j == 0         ? alpha * delta_t
+                                    : j == y.at(i) ? beta * delta_t
+                                                   : zv_distribution() * delta_t;
             }
         }
     }
