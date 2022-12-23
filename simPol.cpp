@@ -3,8 +3,11 @@
 #include <random>
 #include <list>
 #include <chrono>
+#include <algorithm>
 #include <map>
 #include <getopt.h>
+#include <iostream>
+#include <string.h>
 #include <fstream>
 #include <sys/stat.h>
 #include <omp.h>
@@ -13,9 +16,7 @@ using namespace std;
 
 void PrintHelp()
 {
-    cout << "--verbose, -v:       print messages [default]\n"
-            "--quietly, -q:       print no messages\n"
-            "--tssLen, -k:        define the mean of pause sites across cells [default: 50]\n"
+    cout << "--tssLen, -k:        define the mean of pause sites across cells [default: 50]\n"
             "--kSd:               define the standard deviation of pause sites across cells [default: 0]\n"
             "--kMin:              upper bound of pause site allowed [default: 17]\n"
             "--kMax:              lower bound of pause site allowed [default: 200]\n"
@@ -47,17 +48,51 @@ void PrintMatrixToCSV(const vector<T> &matrix, string file_name)
     }
 }
 
-void ConvertListDataToMatrix(vector<list<int>> &input, vector<vector<int>> &output)
+template <typename T>
+void PrintVectorToCSV(const vector<T> &input, string file_name)
 {
-    for (int cell = 0; cell < output.size(); cell++)
+    ofstream out(file_name);
+
+    for (int i = 0; i < input.size(); i++)
     {
-        list<int> *sites = &input[cell];
-        for (list<int>::iterator itr = sites->begin(); itr != sites->end(); itr++)
+        out << "site " << i << ": " << input[i] << ',' << '\n';
+    }
+}
+
+void ConvertListDataToMatrix(vector<vector<int>> &input, vector<vector<int>> &output)
+{
+    for (int i = 0; i < output.size(); i++)
+    {
+        vector<int> *sites = &input[i];
+        for (int j = 0; j < sites->size(); j++)
         {
-            output[cell][*itr] = 1;
+            output[i][(*sites)[j]] = 1;
         }
     }
 }
+
+class Generator
+{
+    std::default_random_engine generator;
+    std::normal_distribution<double> distribution;
+    double min;
+    double max;
+
+public:
+    Generator(double mean, double stddev, double min, double max) : distribution(mean, stddev), min(min), max(max)
+    {
+    }
+
+    double operator()()
+    {
+        while (true)
+        {
+            double number = this->distribution(generator);
+            if (number >= this->min && number <= this->max)
+                return number;
+        }
+    }
+};
 
 int main(int argc, char **argv)
 {
@@ -74,20 +109,17 @@ int main(int argc, char **argv)
     double zeta_sd = 1000;         // standard deviation of elongation rates across sites
     static double zeta_max = 2500; // Max elongation rates allowed
     static double zeta_min = 1500; // Min elongation rates allowed
-    int total_cells = 1000;
-    int s = 33;       // polymerase II size
-    int h = 17;       // Additional space in addition to RNAP size
-    double time = 10; // Total time of simulating data in a cell in minutes
-    int length = gene_len - k;
-    int steric_hindrance = s + h;
+    int total_cells = 10;
+    int s = 33;        // polymerase II size
+    int h = 17;        // Additional space in addition to RNAP size
+    double time = 0.1; // Total time of simulating data in a cell in minutes
     double delta_t = 1e-4;
-    double steps = time / delta_t;
     const int total_sites = 2e3 + 1;
     int steps_to_record = 100;
 
     int c;
 
-    const char *const short_opts = "k:a:b:z:n:s:t:d:";
+    const char *const short_opts = "k:a:b:z:n:s:t:d:h";
     const option long_opts[] = {
         {"tssLen", required_argument, 0, 'k'},
         {"kSd", required_argument, 0, 0},
@@ -102,7 +134,7 @@ int main(int argc, char **argv)
         {"zetaMin", required_argument, 0, 0},
         {"cellNum", required_argument, 0, 'n'},
         {"polSize", required_argument, 0, 's'},
-        {"addSpace", required_argument, 0, 's'},
+        {"addSpace", required_argument, 0, 0},
         {"time", required_argument, 0, 't'},
         {"help", no_argument, nullptr, 'h'},
         {nullptr, no_argument, nullptr, 0}};
@@ -178,67 +210,42 @@ int main(int argc, char **argv)
         }
     }
 
+    int steric_hindrance = s + h;
+    double steps = time / delta_t;
+
     /* Create output directory */
     mkdir("results", 0755);
 
     /* Initialize an array to hold Pol II presence and absence*/
-    vector<list<int>> pos_matrix;
+    vector<vector<int>> pos_matrix;
     for (int i = 0; i < total_cells; i++)
     {
-        list<int> sites;
-        sites.push_front(0);
+        vector<int> sites;
+        sites.reserve(total_sites);
+        sites.push_back(0);
         pos_matrix.insert(pos_matrix.begin() + i, sites);
     }
 
     /* Construct a probability matrix to control RNAP movement
      * Generate pause sites located from kmin to kmax with sd = ksd
      */
-    vector<double> y;
-    static default_random_engine generator;
-    while (y.size() < total_cells)
-    {
-        static normal_distribution<double> distribution(k, ksd); // mean, std dev
-        vector<double> x(total_cells * 2);
-        generate(x.begin(), x.end(), []()
-                 { return distribution(generator); });
-        x.erase(remove_if(x.begin(), x.end(), [](const double &v)
-                          { return v < k_min + 1 || v > k_max + 1; }),
-                x.end());
-        y.insert(y.end(), x.begin(), x.end());
-    }
-    for_each(y.begin(), y.end(), [](double &v)
-             { round(v); });
-
-    /* A matrix of probabilities to control transition from state to state
-     * cols are cells, rows are positions
-     * ignore gamma for now
-     */
-    vector<double> zv;
-    while (zv.size() < total_sites * total_cells)
-    {
-        static normal_distribution<double> distribution(zeta, zeta_sd); // mean, std dev
-        vector<double> x(total_sites * total_cells * 2);
-        generate(x.begin(), x.end(), []()
-                 { return distribution(generator); });
-        x.erase(remove_if(x.begin(), x.end(), [](const double &v)
-                          { return v < zeta_min || v > zeta_max; }),
-                x.end());
-        zv.insert(zv.end(), x.begin(), x.end());
-    }
-    zv.resize(total_sites * total_cells);
-    transform(zv.begin(), zv.end(), zv.begin(), [&delta_t](auto &c)
-              { return c * delta_t; });
-
     vector<vector<double>> prob_matrix(total_cells, vector<double>(total_sites, 0));
-    int zv_idx = 0;
-    for (int i = 0; i < total_cells; i++)
     {
-        for (int j = 0; j < total_sites; j++)
+        vector<double> y;
+        Generator y_distribution(k, ksd, k_min, k_max);
+
+        /* A matrix of probabilities to control transition from state to state
+         * cols are cells, rows are positions
+         */
+        Generator zv_distribution(zeta, zeta_sd, zeta_min, zeta_max);
+        for (int i = 0; i < total_cells; i++)
         {
-            prob_matrix[i][j] = j == 0         ? alpha * delta_t
-                                : j == y.at(i) ? beta * delta_t
-                                               : zv.at(zv_idx);
-            zv_idx++;
+            for (int j = 0; j < total_sites; j++)
+            {
+                prob_matrix[i][j] = j == 0                         ? alpha * delta_t
+                                    : j == round(y_distribution()) ? beta * delta_t
+                                                                   : zv_distribution() * delta_t;
+            }
         }
     }
 
@@ -255,33 +262,32 @@ int main(int argc, char **argv)
     dims[1] = total_sites;
     for (int step = 0; step < steps; step++)
     {
-        #pragma omp parallel for
+#pragma omp parallel for
         for (int cell = 0; cell < total_cells; cell++)
         {
-            list<int> *sites = &pos_matrix[cell];
-            list<int>::iterator itr = sites->begin();
-            while (itr != sites->end())
+            vector<int> *sites = &pos_matrix[cell];
+            for (int i = 0; i < sites->size(); i++)
             {
                 /* Determine whether polymerase can move or not
                  * criteria 1, probability larger than random draw
                  * criteria 2, enough space ahead to let polymerase advance
                  */
-                double prob = prob_matrix[cell][*itr];
+                double prob = prob_matrix[cell][(*sites)[i]];
                 double draw = distrib(gen);
                 if (prob > draw)
                 {
+                    int last_polymerase = sites->size() - 1;
                     /* Check if space ahead is larger than polymerase size */
-                    if (next(itr) != sites->end() && *next(itr) - *itr > steric_hindrance)
+                    if (i != last_polymerase && (*sites)[i + 1] - (*sites)[i] > steric_hindrance)
                     {
-                        *itr = *itr + 1;
+                        (*sites)[i]++;
                     }
                     /* Always allow the polymerase at the end to move */
-                    else if (next(itr) == sites->end())
+                    else if (i == last_polymerase)
                     {
-                        int new_index = *itr + 1;
-                        if (new_index < total_sites)
+                        if ((*sites)[i] + 1 < total_sites)
                         {
-                            *itr = new_index;
+                            (*sites)[i]++;
                         }
                         else
                         {
@@ -291,13 +297,12 @@ int main(int argc, char **argv)
                         }
                     }
                 }
-                itr++;
             }
 
             /* Ensure there are always polymerases waiting to be initialized (i.e., first row equals 1) */
-            if (sites->size() == 0 || sites->front() != 0)
+            if (sites->size() == 0 || (*sites)[0] != 0)
             {
-                sites->push_front(0);
+                sites->insert(sites->begin(), 0);
             }
         }
         /* Record info for studying steric hindrance */
@@ -307,12 +312,12 @@ int main(int argc, char **argv)
         {
             vector<vector<int>> pos_matrix_to_record(total_cells, vector<int>(total_sites));
             ConvertListDataToMatrix(pos_matrix, pos_matrix_to_record);
-            if(record_to_hdf5)
+            if (record_to_hdf5)
             {
                 HighFive::DataSet dataset = file.createDataSet<int>("/group/dataset" + to_string(step), HighFive::DataSpace(dims));
                 dataset.write(pos_matrix_to_record);
             }
-            if(final_step)
+            if (final_step)
             {
                 /* Output final position matrix in csv format */
                 PrintMatrixToCSV(pos_matrix_to_record, "results/final_position_matrix.csv");
@@ -323,21 +328,21 @@ int main(int argc, char **argv)
     auto duration = chrono::duration_cast<chrono::seconds>(stop - start);
     printf("Total time used for the simulation is %.2f mins.\n", duration.count() / 60.0);
 
-    /* Calculate the # of polymerase at each site across all cells*/
-    map<int, int> res_all;
+    /* Calculate the # of polymerase at each site across all cells and output the results in csv format*/
+    std::vector<int> res_all;
     for (int j = 0; j < total_sites; j++)
     {
-        res_all[j] = 0;
+        res_all.push_back(0);
     }
     for (int i = 0; i < total_cells; i++)
     {
-        list<int> *sites = &pos_matrix[i];
-        list<int>::iterator itr = sites->begin();
-        for (itr = sites->begin(); itr != sites->end(); ++itr)
+        vector<int> *sites = &pos_matrix[i];
+        for (int j = 0; j < sites->size(); j++)
         {
-            res_all[*itr]++;
+            res_all[(*sites)[j]]++;
         }
     }
+    PrintVectorToCSV(res_all, "results/combined_cell_data.csv");
 
     /* Output initial probability matrix in csv format */
     PrintMatrixToCSV(prob_matrix, "results/probability_matrix.csv");

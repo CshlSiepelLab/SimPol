@@ -11,7 +11,7 @@
             "program": "${workspaceRoot}/Debug/simPol",
             "args": [
                 "-n",
-                "50000",
+                "10",
                 "-t",
                 "0.1"
             ],
