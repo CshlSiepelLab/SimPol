@@ -53,7 +53,7 @@ void PrintVectorToCSV(const vector<T> &input, string file_name)
 {
     ofstream out(file_name);
 
-    for (int i = 0; i < input.size(); i++)
+    for (size_t i = 0; i < input.size(); i++)
     {
         out << "site " << i << ": " << input[i] << ',' << '\n';
     }
@@ -61,10 +61,10 @@ void PrintVectorToCSV(const vector<T> &input, string file_name)
 
 void ConvertListDataToMatrix(vector<vector<int>> &input, vector<vector<int>> &output)
 {
-    for (int i = 0; i < output.size(); i++)
+    for (size_t i = 0; i < output.size(); i++)
     {
         vector<int> *sites = &input[i];
-        for (int j = 0; j < sites->size(); j++)
+        for (size_t j = 0; j < sites->size(); j++)
         {
             output[i][(*sites)[j]] = 1;
         }
@@ -73,8 +73,8 @@ void ConvertListDataToMatrix(vector<vector<int>> &input, vector<vector<int>> &ou
 
 class Generator
 {
-    std::default_random_engine generator;
-    std::normal_distribution<double> distribution;
+    default_random_engine generator;
+    normal_distribution<double> distribution;
     double min;
     double max;
 
@@ -97,7 +97,6 @@ public:
 int main(int argc, char **argv)
 {
     /* set defaults for parameters */
-    bool verbose = true;
     int k = 50;                    // mean pause site across cells
     double ksd = 0;                // standard deviation of pause sites across cells
     static int k_min = 17;         // upper bound of pause sites allowed
@@ -114,10 +113,7 @@ int main(int argc, char **argv)
     int h = 17;        // Additional space in addition to RNAP size
     double time = 0.1; // Total time of simulating data in a cell in minutes
     double delta_t = 1e-4;
-    const int total_sites = 2e3 + 1;
     int steps_to_record = 100;
-
-    int c;
 
     const char *const short_opts = "k:a:b:z:n:s:t:d:h";
     const option long_opts[] = {
@@ -211,6 +207,7 @@ int main(int argc, char **argv)
     }
 
     int steric_hindrance = s + h;
+    const int total_sites = gene_len + 1;
     double steps = time / delta_t;
 
     /* Create output directory */
@@ -221,40 +218,29 @@ int main(int argc, char **argv)
     for (int i = 0; i < total_cells; i++)
     {
         vector<int> sites;
-        sites.reserve(total_sites);
         sites.push_back(0);
         pos_matrix.insert(pos_matrix.begin() + i, sites);
     }
 
-    vector<vector<double>> prob_matrix(total_cells, vector<double>(total_sites, 0));
+    /* Construct a probability matrix to control RNAP movement
+     * Generate pause sites located from kmin to kmax with sd = ksd
+     */
+    vector<double> y;
+    Generator y_distribution(k, ksd, k_min, k_max);
+    for (int i = 0; i < total_cells; i++)
     {
-        /* Construct a probability matrix to control RNAP movement
-         * Generate pause sites located from kmin to kmax with sd = ksd
-         */
-        vector<double> y;
-        Generator y_distribution(k, ksd, k_min, k_max);
-        for (int i = 0; i < total_cells; i++)
-        {
-            y.push_back(round(y_distribution()));
-        }
-
-        /* A matrix of probabilities to control transition from state to state
-         * cols are cells, rows are positions
-         */
-        Generator zv_distribution(zeta, zeta_sd, zeta_min, zeta_max);
-#pragma omp parallel for collapse(2)
-        for (int i = 0; i < total_cells; i++)
-        {
-            for (int j = 0; j < total_sites; j++)
-            {
-                prob_matrix[i][j] = j == 0         ? alpha * delta_t
-                                    : j == y.at(i) ? beta * delta_t
-                                                   : zv_distribution() * delta_t;
-            }
-        }
+        y.push_back(round(y_distribution()));
     }
 
-    int total_length = total_sites * total_cells;
+    /* A matrix of probabilities to control transition from state to state
+     * cols are cells, rows are positions
+     */
+    vector<double> zv;
+    Generator zv_distribution(zeta, zeta_sd, zeta_min, zeta_max);
+    for (int i = 0; i < total_sites; i++)
+    {
+        zv.push_back(zv_distribution() * delta_t);
+    }
 
     random_device rd; // Get seed for random number generator
     mt19937 gen(rd());
@@ -271,17 +257,20 @@ int main(int argc, char **argv)
         for (int cell = 0; cell < total_cells; cell++)
         {
             vector<int> *sites = &pos_matrix[cell];
-            for (int i = 0; i < sites->size(); i++)
+            for (size_t i = 0; i < sites->size(); i++)
             {
                 /* Determine whether polymerase can move or not
                  * criteria 1, probability larger than random draw
                  * criteria 2, enough space ahead to let polymerase advance
                  */
-                double prob = prob_matrix[cell][(*sites)[i]];
+                int idx = (*sites)[i];
+                double prob = idx == 0            ? alpha * delta_t
+                              : idx == y.at(cell) ? beta * delta_t
+                                                  : zv.at(idx);
                 double draw = distrib(gen);
                 if (prob > draw)
                 {
-                    int last_polymerase = sites->size() - 1;
+                    size_t last_polymerase = sites->size() - 1;
                     /* Check if space ahead is larger than polymerase size */
                     if (i != last_polymerase && (*sites)[i + 1] - (*sites)[i] > steric_hindrance)
                     {
@@ -342,15 +331,18 @@ int main(int argc, char **argv)
     for (int i = 0; i < total_cells; i++)
     {
         vector<int> *sites = &pos_matrix[i];
-        for (int j = 0; j < sites->size(); j++)
+        for (size_t j = 0; j < sites->size(); j++)
         {
             res_all[(*sites)[j]]++;
         }
     }
     PrintVectorToCSV(res_all, "results/combined_cell_data.csv");
 
-    /* Output initial probability matrix in csv format */
-    PrintMatrixToCSV(prob_matrix, "results/probability_matrix.csv");
+    /* Output pause sites in csv format */
+    PrintVectorToCSV(y, "results/pause_sites.csv");
+
+    /* Output probability values per site in csv format */
+    PrintVectorToCSV(y, "results/probability_vector.csv");
 
     return 0;
 }
