@@ -276,6 +276,7 @@ int main(int argc, char **argv)
     uniform_real_distribution<double> distrib(0.0, 1.0);
 
     auto start = chrono::high_resolution_clock::now();
+    vector<vector<vector<int>>> pos_matrices_csv_record; 
     if(hdf5_steps_to_record > 0)
     {
         HighFive::File file("results/position_matrices.h5", HighFive::File::Create);
@@ -342,8 +343,7 @@ int main(int argc, char **argv)
         }
         if (record_to_csv)
         {
-            /* Output final position matrix in csv format */
-            PrintMatrixToCSV(pos_matrix, total_cells, total_sites, "results/positions/final_position_matrix_" + to_string(step) + ".csv");
+            pos_matrices_csv_record.push_back(pos_matrix);
         }
     }
     auto stop = chrono::high_resolution_clock::now();
@@ -361,6 +361,16 @@ int main(int argc, char **argv)
         }
     }
     PrintVectorToCSV(res_all, "results/combined_cell_data.csv", "site");
+
+    if(csv_steps_to_record > 0)
+    {
+        #pragma omp parallel for
+        for(int i = 0; i < csv_steps_to_record; i++)
+        {
+            /* Output position matrix in csv format */
+            PrintMatrixToCSV(pos_matrices_csv_record[i], total_cells, total_sites, "results/positions/position_matrix_" + to_string((int)steps - csv_steps_to_record + i) + ".csv");       
+        }
+    }
 
     return 0;
 }
