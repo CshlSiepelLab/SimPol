@@ -31,35 +31,49 @@ void PrintHelp()
             "--polSize, -s:       Polymerase II size [default: 33]\n"
             "--addSpace:          Additional space in addition to RNAP size [default: 17]\n"
             "--time, -t:          Total time of simulating data in a cell [default: 0.1 min]\n"
+            "--hdf5:              Record position matrix to HDF5 file for remaining number of steps specified [default: 0 steps]\n"
+            "--csv:               Record position matrix to csv file for remaining number of steps specified [default: 1 step]"
             "--help:              Show help\n";
     exit(1);
 }
 
 template <typename T>
-void PrintMatrixToCSV(const vector<T> &matrix, string file_name)
+void PrintMatrixToCSV(vector<T> &matrix, int nrows, int ncols, string file_name)
 {
     ofstream out(file_name);
 
-    for (auto &row : matrix)
+    for (int i = 0; i < nrows; i++)
     {
-        for (auto col : row)
-            out << col << ',';
+        vector<int> *sites = &matrix[i];
+        int site_idx = 0;
+        for (int j = 0; j < ncols; j++)
+        {
+            if (j == (*sites)[site_idx])
+            {
+                out << "1,";
+                site_idx++;
+            }
+            else
+            {
+                out << "0,";
+            }
+        }
         out << '\n';
     }
 }
 
 template <typename T>
-void PrintVectorToCSV(const vector<T> &input, string file_name)
+void PrintVectorToCSV(const vector<T> &input, string file_name, string type)
 {
     ofstream out(file_name);
 
     for (size_t i = 0; i < input.size(); i++)
     {
-        out << "site " << i << ": " << input[i] << ',' << '\n';
+        out << type << " " << i << ": " << input[i] << ',' << '\n';
     }
 }
 
-void ConvertListDataToMatrix(vector<vector<int>> &input, vector<vector<int>> &output)
+void ConvertSiteDataToMatrix(vector<vector<int>> &input, vector<vector<int>> &output)
 {
     for (size_t i = 0; i < output.size(); i++)
     {
@@ -113,9 +127,10 @@ int main(int argc, char **argv)
     int h = 17;        // Additional space in addition to RNAP size
     double time = 0.1; // Total time of simulating data in a cell in minutes
     double delta_t = 1e-4;
-    int steps_to_record = 100;
+    int hdf5_steps_to_record = 0;
+    int csv_steps_to_record = 1;
 
-    const char *const short_opts = "k:a:b:z:n:s:t:d:h";
+    const char *const short_opts = "k:a:b:z:n:s:t:h";
     const option long_opts[] = {
         {"tssLen", required_argument, 0, 'k'},
         {"kSd", required_argument, 0, 0},
@@ -132,6 +147,8 @@ int main(int argc, char **argv)
         {"polSize", required_argument, 0, 's'},
         {"addSpace", required_argument, 0, 0},
         {"time", required_argument, 0, 't'},
+        {"hdf5", required_argument, 0, 0},
+        {"csv", required_argument, 0, 0},
         {"help", no_argument, nullptr, 'h'},
         {nullptr, no_argument, nullptr, 0}};
     int option_index = 0;
@@ -176,6 +193,10 @@ int main(int argc, char **argv)
                 h = stoi(optarg);
             if (strcmp(long_opts[option_index].name, "time") == 0)
                 time = stod(optarg);
+            if (strcmp(long_opts[option_index].name, "hdf5") == 0)
+                hdf5_steps_to_record = stoi(optarg);
+            if (strcmp(long_opts[option_index].name, "csv") == 0)
+                csv_steps_to_record = stoi(optarg);
             break;
         case 'k':
             k = stoi(optarg);
@@ -212,6 +233,10 @@ int main(int argc, char **argv)
 
     /* Create output directory */
     mkdir("results", 0755);
+    if(csv_steps_to_record > 0)
+    {
+        mkdir("results/positions", 0755);
+    }
 
     /* Initialize an array to hold Pol II presence and absence*/
     vector<vector<int>> pos_matrix;
@@ -231,6 +256,8 @@ int main(int argc, char **argv)
     {
         y.push_back(round(y_distribution()));
     }
+    /* Output pause sites in csv format */
+    PrintVectorToCSV(y, "results/pause_sites.csv", "cell");
 
     /* A matrix of probabilities to control transition from state to state
      * cols are cells, rows are positions
@@ -241,16 +268,18 @@ int main(int argc, char **argv)
     {
         zv.push_back(zv_distribution() * delta_t);
     }
+    /* Output probability values per site in csv format */
+    PrintVectorToCSV(zv, "results/probability_vector.csv", "site");
 
     random_device rd; // Get seed for random number generator
     mt19937 gen(rd());
     uniform_real_distribution<double> distrib(0.0, 1.0);
 
     auto start = chrono::high_resolution_clock::now();
-    HighFive::File file("results/position_matrices.h5", HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Truncate);
-    vector<size_t> dims(2);
-    dims[0] = total_cells;
-    dims[1] = total_sites;
+    if(hdf5_steps_to_record > 0)
+    {
+        HighFive::File file("results/position_matrices.h5", HighFive::File::Create);
+    }
     for (int step = 0; step < steps; step++)
     {
 #pragma omp parallel for
@@ -300,22 +329,21 @@ int main(int argc, char **argv)
             }
         }
         /* Record info for studying steric hindrance */
-        bool record_to_hdf5 = step >= (steps - steps_to_record);
-        bool final_step = step == steps - 1;
-        if (record_to_hdf5 || final_step)
+        bool record_to_hdf5 = step >= (steps - hdf5_steps_to_record);
+        bool record_to_csv = step >= (steps - csv_steps_to_record);
+        if (record_to_hdf5)
         {
+            HighFive::File file("results/position_matrices.h5", HighFive::File::ReadWrite);
+            vector<size_t> dims(total_cells, total_sites);
             vector<vector<int>> pos_matrix_to_record(total_cells, vector<int>(total_sites));
-            ConvertListDataToMatrix(pos_matrix, pos_matrix_to_record);
-            if (record_to_hdf5)
-            {
-                HighFive::DataSet dataset = file.createDataSet<int>("/group/dataset" + to_string(step), HighFive::DataSpace(dims));
-                dataset.write(pos_matrix_to_record);
-            }
-            if (final_step)
-            {
-                /* Output final position matrix in csv format */
-                PrintMatrixToCSV(pos_matrix_to_record, "results/final_position_matrix.csv");
-            }
+            ConvertSiteDataToMatrix(pos_matrix, pos_matrix_to_record);
+            HighFive::DataSet dataset = file.createDataSet<int>("/group/dataset_" + to_string(step), HighFive::DataSpace(dims));
+            dataset.write(pos_matrix_to_record);
+        }
+        if (record_to_csv)
+        {
+            /* Output final position matrix in csv format */
+            PrintMatrixToCSV(pos_matrix, total_cells, total_sites, "results/positions/final_position_matrix_" + to_string(step) + ".csv");
         }
     }
     auto stop = chrono::high_resolution_clock::now();
@@ -323,11 +351,7 @@ int main(int argc, char **argv)
     printf("Total time used for the simulation is %.2f mins.\n", duration.count() / 60.0);
 
     /* Calculate the # of polymerase at each site across all cells and output the results in csv format*/
-    std::vector<int> res_all;
-    for (int j = 0; j < total_sites; j++)
-    {
-        res_all.push_back(0);
-    }
+    vector<int> res_all(total_sites, 0);
     for (int i = 0; i < total_cells; i++)
     {
         vector<int> *sites = &pos_matrix[i];
@@ -336,13 +360,7 @@ int main(int argc, char **argv)
             res_all[(*sites)[j]]++;
         }
     }
-    PrintVectorToCSV(res_all, "results/combined_cell_data.csv");
-
-    /* Output pause sites in csv format */
-    PrintVectorToCSV(y, "results/pause_sites.csv");
-
-    /* Output probability values per site in csv format */
-    PrintVectorToCSV(y, "results/probability_vector.csv");
+    PrintVectorToCSV(res_all, "results/combined_cell_data.csv", "site");
 
     return 0;
 }
