@@ -91,6 +91,14 @@ Debug from vscode by setting up launch.json file and installing C/C++ extension
 
 Run program with file containing command line arguments: ./Release/simPol $(<simPol_arguments.dat)
 
+Pre-built debug and release executables can be found in the bin folder
+
+```
+./bin/simPol_Debug
+
+./bin/simPol_Release
+```
+
 Options:
 	-h, --help
 		Show this help message and exit
@@ -127,6 +135,9 @@ Options:
 
 	--zetaMin=DOUBLE
 		the minimum of elongation rates allowed [default 1500bp per min]
+
+	--zetaVec=CHARACTER
+		a file contains vector to scale elongation rates. All cells share the same set of parameters [default ""]
 
 	-n INTEGER, --cellNum=INTEGER
 		Number of cells being simulated [default 10]

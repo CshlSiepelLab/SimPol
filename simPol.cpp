@@ -27,6 +27,7 @@ void PrintHelp()
             "--zetaSd:            the standard deviation of elongation rates across sites [default: 1000]\n"
             "--zetaMax:           the maximum of elongation rates allowed [default: 2500 per min]\n"
             "--zetaMin:           the minimum of elongation rates allowed [default: 1500 per min]\n"
+            "--zetaVec            a file contains vector to scale elongation rates. All cells share the same set of parameters [default: ""]"
             "--cellNum, -n:       number of cells being simulated [default: 10]\n"
             "--polSize, -s:       Polymerase II size [default: 33]\n"
             "--addSpace:          Additional space in addition to RNAP size [default: 17]\n"
@@ -59,17 +60,6 @@ void PrintPositionMatrixToCSV(vector<T> &matrix, int nrows, int ncols, string fi
             }
         }
         out << '\n';
-    }
-}
-
-template <typename T>
-void PrintVectorToCSV(const vector<T> &input, string file_name, string type)
-{
-    ofstream out(file_name);
-
-    for (size_t i = 0; i < input.size(); i++)
-    {
-        out << type << " " << i << ": " << input[i] << ',' << '\n';
     }
 }
 
@@ -116,9 +106,10 @@ int main(int argc, char **argv)
     size_t gene_len = 2e3;                   // length of the entire gene
     double alpha = 1, beta = 1;              // initiation rate, pause release rate
     double zeta = 2000, zeta_sd = 1000, zeta_max = 2500, zeta_min = 1500; // mean, std dev, max, and min of elongation rates across sites
+    string zeta_vec = "";                  // file containing vector to scale elongation rates
     int total_cells = 10;
     int s = 33, h = 17;                      // polymerase II size, Additional space in addition to RNAP size
-    double time = 0.1, delta_t = 1e-4;       // Total time of simulating data in a cell in minutes
+    double time = 0.1, delta_t = 1e-4;       // total time of simulating data in a cell in minutes
     int hdf5_steps_to_record = 0, csv_steps_to_record = 1;
     string results_dir = "results";
     string positions_dir = results_dir + "/positions";
@@ -141,6 +132,7 @@ int main(int argc, char **argv)
         {"zetaSd", required_argument, 0, 0},
         {"zetaMax", required_argument, 0, 0},
         {"zetaMin", required_argument, 0, 0},
+        {"zetaVec", required_argument, 0, 0},
         {"cellNum", required_argument, 0, 'n'},
         {"polSize", required_argument, 0, 's'},
         {"addSpace", required_argument, 0, 0},
@@ -183,6 +175,8 @@ int main(int argc, char **argv)
                 zeta_max = stod(optarg);
             if (strcmp(long_opts[option_index].name, "zetaMin") == 0)
                 zeta_min = stod(optarg);
+            if (strcmp(long_opts[option_index].name, "zetaVec") == 0)
+                zeta_vec = optarg;
             if (strcmp(long_opts[option_index].name, "cellNum") == 0)
                 total_cells = stoi(optarg);
             if (strcmp(long_opts[option_index].name, "polSize") == 0)
@@ -235,6 +229,7 @@ int main(int argc, char **argv)
     {
         mkdir(positions_dir.c_str(), 0755);
     }
+    ofstream out;
 
     /* Initialize an array to hold Pol II presence and absence*/
     vector<vector<int>> pos_matrix;
@@ -255,19 +250,57 @@ int main(int argc, char **argv)
         y.push_back(round(y_distribution()));
     }
     /* Output pause sites per cell in csv format */
-    PrintVectorToCSV(y, pause_sites_file_name, "cell");
+    out.open(pause_sites_file_name);
+    for (size_t i = 0; i < y.size(); i++)
+    {
+        out << y[i] << ',';
+    }
+    out.close();
 
     /* A matrix of probabilities to control transition from state to state
      * cols are cells, rows are positions
      */
     vector<double> zv;
-    Generator zv_distribution(zeta, zeta_sd, zeta_min, zeta_max);
-    for (int i = 0; i < total_sites; i++)
+    if(zeta_vec == "")
     {
-        zv.push_back(zv_distribution() * delta_t);
+        Generator zv_distribution(zeta, zeta_sd, zeta_min, zeta_max);
+        for (int i = 0; i < total_sites; i++)
+        {
+            zv.push_back(zv_distribution() * delta_t);
+        }
+    }
+    else {
+        ifstream  data(zeta_vec);
+        if(data.is_open())
+        {
+            string line;
+            while(getline(data, line, ',')) {
+                zv.emplace_back(stod(line));
+            }
+        }
+        if((int)zv.size() >= total_sites)
+        {
+            zv.resize(total_sites);
+        }
+        else if((int)zv.size() == total_sites - 1)
+        {
+            double mean = accumulate(zv.begin(), zv.end(), 0.0) / zv.size();
+            zv.insert(zv.begin(), mean);
+        }
+        else {
+            printf("Vector for scaling zeta is too short, check total length of the vector!");
+            return -1;
+        }
+        double transform_val = zeta * delta_t;
+        transform(zv.begin(), zv.end(), zv.begin(), [&transform_val](auto& c){return c*transform_val;});
     }
     /* Output probability values per site in csv format */
-    PrintVectorToCSV(zv, probability_file_name, "site");
+    out.open(probability_file_name);
+    for (size_t i = 0; i < zv.size(); i++)
+    {
+        out << zv[i] << ',';
+    }
+    out.close();
 
     random_device rd; // Get seed for random number generator
     mt19937 gen(rd());
@@ -365,7 +398,12 @@ int main(int argc, char **argv)
             res_all[(*sites)[j]]++;
         }
     }
-    PrintVectorToCSV(res_all, combined_cells_file_name, "site");
+    out.open(combined_cells_file_name);
+    for (size_t i = 0; i < res_all.size(); i++)
+    {
+        out << "site " << i << ": " << res_all[i] << ",\n";
+    }
+    out.close();
 
     if(csv_steps_to_record > 0)
     {
