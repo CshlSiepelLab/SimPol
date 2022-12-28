@@ -14,8 +14,7 @@ in time slices of $10^{-4}$ minutes, according to the specified position-specifi
 rate parameters. It assumes that at most one movement of each RNAP can occur per
 time slice. The simulator monitors for collisions between adjacent RNAPs, prohibiting
 one RNAP to advance if it is at the boundary of the allowable distance from the next.
-After running for the specified time, SimPol outputs a file in HDF5 format that
-records all RNAP position for the last specified 100 steps. See more options and details about parameters and outputs below.
+After running for the specified time, SimPol outputs either a file in HDF5 format or files in CSV format that records all RNAP position for the last specified number of steps. See more options and details about parameters and outputs below.
 
 <p align="center">
   <img src="figures/simulator.png" alt="simulator" width="600"/>
@@ -25,7 +24,33 @@ records all RNAP position for the last specified 100 steps. See more options and
 	Fig.1 Design of SimPol (“Simulator of Polymerases”)
 </p>
 
-## Build
+## Setup and Build
+
+Run setup bash file to install dependencies
+
+```
+chmod +x linux_setup.sh
+
+sudo ./linux_setup.sh
+```
+
+Additionally install cmake, gcc compiler, gdb
+
+```
+sudo apt-get install cmake
+
+sudo apt-get install build-essential
+
+sudo apt-get install manpages-dev
+
+sudo apt-get install gdb
+```
+
+Check that compiler was successfully installed
+
+```
+gcc --version
+```
 
 There is the option to build in either debug mode with debug symbols or release mode with compiler optimizations (e.g. -O2). 
 
@@ -62,7 +87,7 @@ Debug from command line: gdb ./Debug/simPol
 	* Run program with arguments: r -k 100
 	* Print variable info at breakpoint: print k
 
-Debug from vscode by setting up launch.json file
+Debug from vscode by setting up launch.json file and installing C/C++ extension
 
 Run program with file containing command line arguments: ./Release/simPol $(<simPol_arguments.dat)
 
@@ -115,17 +140,25 @@ Options:
 	-t DOUBLE, --time=DOUBLE
 		Total time of simulating data in a cell [default 0.1 min]
 
+	--hdf5=INTEGER
+		Record position matrix to HDF5 file for remaining number of steps specified [default: 0 steps]
+
+	-csv=INTEGER
+		Record position matrix to csv file for remaining number of steps specified [default: 1 step]
+
 ```
 
 ## Outputs
 
-After simulation, SimPol produces three output files:
+After simulation, SimPol produces multiple output files:
 
-1. probability_matrix.csv
-2. final_position_matrix.csv
-3. position_matrices.h5: An HDF5 file containing a group of position matrices for the last 100 steps. The file can be viewed by importing it into the HDFView app. Download Here: [a link](https://www.hdfgroup.org/downloads/hdfview/#download)
-	* Using HighFive interface to generate HDF5 file [a link](https://github.com/BlueBrain/HighFive)
-
+1. probability_vector.csv
+2. pause_sites.csv
+3. combined_cell_data.csv: Stores the total # of polymerase at each site across all cells
+4. position_matrices.h5: An HDF5 file containing a group of position matrices for the last number of specified steps. The file can be viewed by importing it into the HDFView app. Download Here: [https://www.hdfgroup.org/downloads/hdfview/#download](https://www.hdfgroup.org/downloads/hdfview/#download)
+	* Using HighFive interface to generate HDF5 file [https://github.com/BlueBrain/HighFive](https://github.com/BlueBrain/HighFive)
+	* Uses chunking and ZLIB (deflate) compression at level 9
+5. positions/position_matrix_#.csv: CSV files containing the position matrix at a specified step
 
 ## Citation
 Zhao, Y., Liu, L. & Siepel, A. Model-based characterization of the equilibrium dynamics of transcription initiation and promoter-proximal pausing in human cells. 2022.10.19.512929 Preprint at [bioRxiv](https://doi.org/10.1101/2022.10.19.512929) (2022).

@@ -32,7 +32,7 @@ void PrintHelp()
             "--addSpace:          Additional space in addition to RNAP size [default: 17]\n"
             "--time, -t:          Total time of simulating data in a cell [default: 0.1 min]\n"
             "--hdf5:              Record position matrix to HDF5 file for remaining number of steps specified [default: 0 steps]\n"
-            "--csv:               Record position matrix to csv file for remaining number of steps specified [default: 1 step]"
+            "--csv:               Record position matrix to csv file for remaining number of steps specified [default: 1 step]\n"
             "--help:              Show help\n";
     exit(1);
 }
