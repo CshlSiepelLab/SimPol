@@ -8,12 +8,14 @@
             "name": "(gdb) Launch",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceRoot}/Debug/simPol",
+            "program": "${workspaceRoot}/Release/simPol",
             "args": [
                 "-n",
+                "5000",
+                "--hdf5",
                 "10",
-                "-t",
-                "0.1"
+                "--csv",
+                "10"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceRoot}",
