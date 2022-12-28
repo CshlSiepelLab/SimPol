@@ -38,7 +38,7 @@ void PrintHelp()
 }
 
 template <typename T>
-void PrintMatrixToCSV(vector<T> &matrix, int nrows, int ncols, string file_name)
+void PrintPositionMatrixToCSV(vector<T> &matrix, int nrows, int ncols, string file_name)
 {
     ofstream out(file_name);
 
@@ -111,24 +111,22 @@ public:
 int main(int argc, char **argv)
 {
     /* set defaults for parameters */
-    int k = 50;                    // mean pause site across cells
-    double ksd = 0;                // standard deviation of pause sites across cells
-    static int k_min = 17;         // upper bound of pause sites allowed
-    static int k_max = 200;        // lower bound of pause sites allowed
-    size_t gene_len = 2e3;         // length of the entire gene
-    double alpha = 1;              // initiation rate
-    double beta = 1;               // pause release rate
-    double zeta = 2000;            // mean of elongation rates across sites
-    double zeta_sd = 1000;         // standard deviation of elongation rates across sites
-    static double zeta_max = 2500; // Max elongation rates allowed
-    static double zeta_min = 1500; // Min elongation rates allowed
+    int k = 50, k_min = 17, k_max = 200;     // mean, max and min of pause sites
+    double ksd = 0;                          // std dev of pause sites across cells
+    size_t gene_len = 2e3;                   // length of the entire gene
+    double alpha = 1, beta = 1;              // initiation rate, pause release rate
+    double zeta = 2000, zeta_sd = 1000, zeta_max = 2500, zeta_min = 1500; // mean, std dev, max, and min of elongation rates across sites
     int total_cells = 10;
-    int s = 33;        // polymerase II size
-    int h = 17;        // Additional space in addition to RNAP size
-    double time = 0.1; // Total time of simulating data in a cell in minutes
-    double delta_t = 1e-4;
-    int hdf5_steps_to_record = 0;
-    int csv_steps_to_record = 1;
+    int s = 33, h = 17;                      // polymerase II size, Additional space in addition to RNAP size
+    double time = 0.1, delta_t = 1e-4;       // Total time of simulating data in a cell in minutes
+    int hdf5_steps_to_record = 0, csv_steps_to_record = 1;
+    string results_dir = "results";
+    string positions_dir = results_dir + "/positions";
+    string pause_sites_file_name = results_dir + "/pause_sites.csv";
+    string probability_file_name = results_dir + "/probability_vector.csv";
+    string positions_hdf5_file_name = results_dir + "/position_matrices.h5";
+    string combined_cells_file_name = results_dir + "/combined_cell_data.csv";
+    string positions_file_name = positions_dir + "/position_matrix_";
 
     const char *const short_opts = "k:a:b:z:n:s:t:h";
     const option long_opts[] = {
@@ -231,11 +229,11 @@ int main(int argc, char **argv)
     const int total_sites = gene_len + 1;
     double steps = time / delta_t;
 
-    /* Create output directory */
-    mkdir("results", 0755);
+    /* Create output directories */
+    mkdir(results_dir.c_str(), 0755);
     if(csv_steps_to_record > 0)
     {
-        mkdir("results/positions", 0755);
+        mkdir(positions_dir.c_str(), 0755);
     }
 
     /* Initialize an array to hold Pol II presence and absence*/
@@ -256,8 +254,8 @@ int main(int argc, char **argv)
     {
         y.push_back(round(y_distribution()));
     }
-    /* Output pause sites in csv format */
-    PrintVectorToCSV(y, "results/pause_sites.csv", "cell");
+    /* Output pause sites per cell in csv format */
+    PrintVectorToCSV(y, pause_sites_file_name, "cell");
 
     /* A matrix of probabilities to control transition from state to state
      * cols are cells, rows are positions
@@ -269,7 +267,7 @@ int main(int argc, char **argv)
         zv.push_back(zv_distribution() * delta_t);
     }
     /* Output probability values per site in csv format */
-    PrintVectorToCSV(zv, "results/probability_vector.csv", "site");
+    PrintVectorToCSV(zv, probability_file_name, "site");
 
     random_device rd; // Get seed for random number generator
     mt19937 gen(rd());
@@ -279,7 +277,7 @@ int main(int argc, char **argv)
     vector<vector<vector<int>>> pos_matrices_csv_record; 
     if(hdf5_steps_to_record > 0)
     {
-        HighFive::File file("results/position_matrices.h5", HighFive::File::Create);
+        HighFive::File file(positions_hdf5_file_name, HighFive::File::Create | HighFive::File::Overwrite);
     }
     for (int step = 0; step < steps; step++)
     {
@@ -293,10 +291,10 @@ int main(int argc, char **argv)
                  * criteria 1, probability larger than random draw
                  * criteria 2, enough space ahead to let polymerase advance
                  */
-                int idx = (*sites)[i];
-                double prob = idx == 0            ? alpha * delta_t
-                              : idx == y.at(cell) ? beta * delta_t
-                                                  : zv.at(idx);
+                int site_idx = (*sites)[i];
+                double prob = site_idx == 0            ? alpha * delta_t
+                              : site_idx == y.at(cell) ? beta * delta_t
+                                                  : zv.at(site_idx);
                 double draw = distrib(gen);
                 if (prob > draw)
                 {
@@ -323,7 +321,7 @@ int main(int argc, char **argv)
                 }
             }
 
-            /* Ensure there are always polymerases waiting to be initialized (i.e., first row equals 1) */
+            /* Ensure there are always polymerases waiting to be initialized (i.e., first col is always 1) */
             if (sites->size() == 0 || (*sites)[0] != 0)
             {
                 sites->insert(sites->begin(), 0);
@@ -334,12 +332,19 @@ int main(int argc, char **argv)
         bool record_to_csv = step >= (steps - csv_steps_to_record);
         if (record_to_hdf5)
         {
-            HighFive::File file("results/position_matrices.h5", HighFive::File::ReadWrite);
-            vector<size_t> dims(total_cells, total_sites);
-            vector<vector<int>> pos_matrix_to_record(total_cells, vector<int>(total_sites));
-            ConvertSiteDataToMatrix(pos_matrix, pos_matrix_to_record);
-            HighFive::DataSet dataset = file.createDataSet<int>("/group/dataset_" + to_string(step), HighFive::DataSpace(dims));
-            dataset.write(pos_matrix_to_record);
+            HighFive::File file(positions_hdf5_file_name, HighFive::File::ReadWrite);
+            vector<size_t> dims(2);
+            dims[0] = total_cells;
+            dims[1] = total_sites;
+            vector<vector<int>> pos_matrix_record_to_hdf5(total_cells, vector<int>(total_sites));
+            ConvertSiteDataToMatrix(pos_matrix, pos_matrix_record_to_hdf5);
+            HighFive::DataSetCreateProps dsprops;
+            hsize_t num_chunk_rows = total_cells / 10;
+            hsize_t num_chunk_cols = total_sites / 10;
+            dsprops.add(HighFive::Chunking(vector<hsize_t>{num_chunk_rows >= 1 ? num_chunk_rows : 1, num_chunk_cols >= 1 ? num_chunk_cols : 1}));
+            dsprops.add(HighFive::Deflate(9));
+            HighFive::DataSet dataset = file.createDataSet<int>("/group/dataset_" + to_string(step), HighFive::DataSpace(dims), dsprops);
+            dataset.write(pos_matrix_record_to_hdf5);
         }
         if (record_to_csv)
         {
@@ -350,25 +355,25 @@ int main(int argc, char **argv)
     auto duration = chrono::duration_cast<chrono::seconds>(stop - start);
     printf("Total time used for the simulation is %.2f mins.\n", duration.count() / 60.0);
 
-    /* Calculate the # of polymerase at each site across all cells and output the results in csv format*/
+    /* Calculate the # of polymerase at each site across all cells and output the results in csv format */
     vector<int> res_all(total_sites, 0);
-    for (int i = 0; i < total_cells; i++)
+    for (int cell = 0; cell < total_cells; cell++)
     {
-        vector<int> *sites = &pos_matrix[i];
+        vector<int> *sites = &pos_matrix[cell];
         for (size_t j = 0; j < sites->size(); j++)
         {
             res_all[(*sites)[j]]++;
         }
     }
-    PrintVectorToCSV(res_all, "results/combined_cell_data.csv", "site");
+    PrintVectorToCSV(res_all, combined_cells_file_name, "site");
 
     if(csv_steps_to_record > 0)
     {
         #pragma omp parallel for
         for(int i = 0; i < csv_steps_to_record; i++)
         {
-            /* Output position matrix in csv format */
-            PrintMatrixToCSV(pos_matrices_csv_record[i], total_cells, total_sites, "results/positions/position_matrix_" + to_string((int)steps - csv_steps_to_record + i) + ".csv");       
+            int step_idx = csv_steps_to_record > steps ? i : steps - csv_steps_to_record + i; 
+            PrintPositionMatrixToCSV(pos_matrices_csv_record[i], total_cells, total_sites, positions_file_name + to_string(step_idx) + ".csv");       
         }
     }
 
