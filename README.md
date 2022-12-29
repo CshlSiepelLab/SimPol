@@ -123,11 +123,9 @@ Run program with file containing command line arguments: ./Release/simPol $(<sim
 
 Pre-built debug and release executables can be found in the bin folder
 
-```
-./bin/simPol_Debug
+	* ./bin/simPol_Debug
 
-./bin/simPol_Release
-```
+	* ./bin/simPol_Release
 
 Options:
 	-h, --help
