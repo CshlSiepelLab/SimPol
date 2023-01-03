@@ -34,6 +34,7 @@ void PrintHelp()
             "--time, -t:          Total time of simulating data in a cell [default: 0.1 min]\n"
             "--hdf5:              Record position matrix to HDF5 file for remaining number of steps specified [default: 0 steps]\n"
             "--csv:               Record position matrix to csv file for remaining number of steps specified [default: 1 step]\n"
+            "--outputDir, -d:     Directory for saving results [default: 'results']"
             "--help:              Show help\n";
     exit(1);
 }
@@ -75,28 +76,27 @@ void ConvertSiteDataToMatrix(vector<vector<int>> &input, vector<vector<int>> &ou
     }
 }
 
-class Generator
+vector<double> NormalDistrubtionGenerator(double mean, double stddev, double min, double max, size_t length, bool round_result, double multiplication_factor=1)
 {
+    random_device rd; // Get seed for random number generator
     default_random_engine generator;
-    normal_distribution<double> distribution;
-    double min;
-    double max;
-
-public:
-    Generator(double mean, double stddev, double min, double max) : distribution(mean, stddev), min(min), max(max)
+    normal_distribution<double> distribution(mean, stddev);
+    generator.seed(rd());
+    vector<double> random_values;
+    while(random_values.size() < length)
     {
-    }
-
-    double operator()()
-    {
-        while (true)
-        {
-            double number = this->distribution(generator);
-            if (number >= this->min && number <= this->max)
-                return number;
+        double number = distribution(generator);
+        if (number >= min && number <= max) {
+            if(round_result)
+            {
+                number = round(number);
+            }
+            random_values.push_back(number * multiplication_factor);
         }
     }
-};
+
+    return random_values;
+}
 
 int main(int argc, char **argv)
 {
@@ -111,15 +111,9 @@ int main(int argc, char **argv)
     int s = 33, h = 17;                      // polymerase II size, Additional space in addition to RNAP size
     double time = 0.1, delta_t = 1e-4;       // total time of simulating data in a cell in minutes
     int hdf5_steps_to_record = 0, csv_steps_to_record = 1;
-    string results_dir = "results";
-    string positions_dir = results_dir + "/positions";
-    string pause_sites_file_name = results_dir + "/pause_sites.csv";
-    string probability_file_name = results_dir + "/probability_vector.csv";
-    string positions_hdf5_file_name = results_dir + "/position_matrices.h5";
-    string combined_cells_file_name = results_dir + "/combined_cell_data.csv";
-    string positions_file_name = positions_dir + "/position_matrix_";
+    string output_dir = "results";
 
-    const char *const short_opts = "k:a:b:z:n:s:t:h";
+    const char *const short_opts = "k:a:b:z:n:s:t:d:h";
     const option long_opts[] = {
         {"tssLen", required_argument, 0, 'k'},
         {"kSd", required_argument, 0, 0},
@@ -139,6 +133,7 @@ int main(int argc, char **argv)
         {"time", required_argument, 0, 't'},
         {"hdf5", required_argument, 0, 0},
         {"csv", required_argument, 0, 0},
+        {"outputDir", required_argument, 0, 'd'},
         {"help", no_argument, nullptr, 'h'},
         {nullptr, no_argument, nullptr, 0}};
     int option_index = 0;
@@ -189,6 +184,8 @@ int main(int argc, char **argv)
                 hdf5_steps_to_record = stoi(optarg);
             if (strcmp(long_opts[option_index].name, "csv") == 0)
                 csv_steps_to_record = stoi(optarg);
+            if (strcmp(long_opts[option_index].name, "outputDir") == 0)
+                output_dir = optarg;
             break;
         case 'k':
             k = stoi(optarg);
@@ -211,6 +208,9 @@ int main(int argc, char **argv)
         case 't':
             time = stod(optarg);
             break;
+        case 'd':
+            output_dir = optarg;
+            break;
         case 'h':
         case '?':
         default:
@@ -224,7 +224,13 @@ int main(int argc, char **argv)
     double steps = time / delta_t;
 
     /* Create output directories */
-    mkdir(results_dir.c_str(), 0755);
+    string positions_dir = output_dir + "/positions";
+    string pause_sites_file_name = output_dir + "/pause_sites.csv";
+    string probability_file_name = output_dir + "/probability_vector.csv";
+    string positions_hdf5_file_name = output_dir + "/position_matrices.h5";
+    string combined_cells_file_name = output_dir + "/combined_cell_data.csv";
+    string positions_file_name = positions_dir + "/position_matrix_";
+    mkdir(output_dir.c_str(), 0755);
     if(csv_steps_to_record > 0)
     {
         mkdir(positions_dir.c_str(), 0755);
@@ -243,17 +249,13 @@ int main(int argc, char **argv)
     /* Construct a probability matrix to control RNAP movement
      * Generate pause sites located from kmin to kmax with sd = ksd
      */
-    vector<double> y;
-    Generator y_distribution(k, ksd, k_min, k_max);
-    for (int i = 0; i < total_cells; i++)
-    {
-        y.push_back(round(y_distribution()));
-    }
+    vector<double> y = NormalDistrubtionGenerator(k, ksd, k_min, k_max, total_cells, true);
+
     /* Output pause sites per cell in csv format */
     out.open(pause_sites_file_name);
     for (size_t i = 0; i < y.size(); i++)
     {
-        out << y[i] << ',';
+        out << y[i] << '\n';
     }
     out.close();
 
@@ -263,11 +265,7 @@ int main(int argc, char **argv)
     vector<double> zv;
     if(zeta_vec == "")
     {
-        Generator zv_distribution(zeta, zeta_sd, zeta_min, zeta_max);
-        for (int i = 0; i < total_sites; i++)
-        {
-            zv.push_back(zv_distribution() * delta_t);
-        }
+        zv = NormalDistrubtionGenerator(zeta, zeta_sd, zeta_min, zeta_max, total_sites, false, delta_t);
     }
     else {
         ifstream  data(zeta_vec);
@@ -298,7 +296,7 @@ int main(int argc, char **argv)
     out.open(probability_file_name);
     for (size_t i = 0; i < zv.size(); i++)
     {
-        out << zv[i] << ',';
+        out << zv[i] << '\n';
     }
     out.close();
 
@@ -376,7 +374,7 @@ int main(int argc, char **argv)
             hsize_t num_chunk_cols = total_sites / 10;
             dsprops.add(HighFive::Chunking(vector<hsize_t>{num_chunk_rows >= 1 ? num_chunk_rows : 1, num_chunk_cols >= 1 ? num_chunk_cols : 1}));
             dsprops.add(HighFive::Deflate(9));
-            HighFive::DataSet dataset = file.createDataSet<int>("/group/dataset_" + to_string(step), HighFive::DataSpace(dims), dsprops);
+            HighFive::DataSet dataset = file.createDataSet<int>("/group/dataset_" + to_string(step + 1), HighFive::DataSpace(dims), dsprops);
             dataset.write(pos_matrix_record_to_hdf5);
         }
         if (record_to_csv)
@@ -401,16 +399,17 @@ int main(int argc, char **argv)
     out.open(combined_cells_file_name);
     for (size_t i = 0; i < res_all.size(); i++)
     {
-        out << "site " << i << ": " << res_all[i] << ",\n";
+        out << res_all[i] << "\n";
     }
     out.close();
 
     if(csv_steps_to_record > 0)
     {
+        int total_steps_to_record = csv_steps_to_record > (int)pos_matrices_csv_record.size() ? (int)pos_matrices_csv_record.size() : csv_steps_to_record;
         #pragma omp parallel for
-        for(int i = 0; i < csv_steps_to_record; i++)
+        for(int i = 0; i < total_steps_to_record; i++)
         {
-            int step_idx = csv_steps_to_record > steps ? i : steps - csv_steps_to_record + i; 
+            int step_idx = csv_steps_to_record > steps ? i + 1 : steps - csv_steps_to_record + i + 1; 
             PrintPositionMatrixToCSV(pos_matrices_csv_record[i], total_cells, total_sites, positions_file_name + to_string(step_idx) + ".csv");       
         }
     }
