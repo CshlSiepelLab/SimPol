@@ -272,7 +272,7 @@ int main(int argc, char **argv)
         if(data.is_open())
         {
             string line;
-            while(getline(data, line, ',')) {
+            while(getline(data, line, '\n')) {
                 zv.emplace_back(stod(line));
             }
         }
