@@ -36,13 +36,13 @@ git submodule update
 Load HDF5 into environment, ex:
 
 ```
-module load hdf5-1.10.1
+module load hdf5/1.10.1
 ```
 
 Load Boost into environment ex:
 
 ```
-module load boost-1.71.0
+module load boost/1.71.0
 ```
 
 Run with UGE Workload Manager
@@ -126,6 +126,10 @@ Pre-built debug and release executables can be found in the bin folder
 	* ./bin/simPol_Debug
 
 	* ./bin/simPol_Release
+
+Set number of threads used in parallel environment:
+	* On Cluster: Run qsub with -pe OpenMP <number of threads to use>
+	* On Personal Machine: export OMP_NUM_THREADS=<number of threads to use>
 
 Options:
 	-h, --help
