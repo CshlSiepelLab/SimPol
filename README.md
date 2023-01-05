@@ -27,11 +27,9 @@ After running for the specified time, SimPol outputs either a file in HDF5 forma
 ## Create Conda Environment
 
 ```
-conda create -n simpol -c conda-forge -c anaconda
+conda env create -f environment.yml
 
 conda activate simpol
-
-conda install -c conda-forge highfive
 ```
 
 ## Build
