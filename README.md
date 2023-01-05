@@ -24,61 +24,18 @@ After running for the specified time, SimPol outputs either a file in HDF5 forma
 	Fig.1 Design of SimPol (“Simulator of Polymerases”)
 </p>
 
-## Setup Environment for HPC Cluster
-
-Run git submodule commands
+## Option 1: Create Conda Environment
 
 ```
-git submodule init
-git submodule update
+conda create -n simpol -c conda-forge -c anaconda
+
+conda activate simpol
+
+conda install -c conda-forge highfive
 ```
 
-Load HDF5 into environment, ex:
+## Option 2: Use Singularity Environment
 
-```
-module load hdf5/1.10.1
-```
-
-Load Boost into environment ex:
-
-```
-module load boost/1.71.0
-```
-
-Run with UGE Workload Manager
-
-```
-qsub -pe OpenMP 5 -cwd -b y ./Release/simPol -n 100 --csv 10
-```
-where OpenMP is the parallel environment name 
-
-## Setup Environment for Ubuntu-20.04
-
-Run setup bash file to install dependencies
-
-```
-chmod +x linux_setup.sh
-
-sudo ./linux_setup.sh
-```
-
-Additionally install cmake, gcc compiler, gdb
-
-```
-sudo apt-get install cmake
-
-sudo apt-get install build-essential
-
-sudo apt-get install manpages-dev
-
-sudo apt-get install gdb
-```
-
-Check that compiler was successfully installed
-
-```
-gcc --version
-```
 
 ## Build
 
@@ -103,6 +60,13 @@ cmake --build Release/
 ```
 
 Note: Replace all instances of 'Release' with 'Debug' to build in Debug mode
+
+## Run with UGE Workload Manager Example
+
+```
+qsub -pe OpenMP 5 -cwd -b y ./Release/simPol -n 100 --csv 10
+```
+* Note: This allocates 5 threads for the program in the OpenMP parallel environment
 
 ## Usage
 
