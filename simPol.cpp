@@ -27,14 +27,14 @@ void PrintHelp()
             "--zetaSd:            the standard deviation of elongation rates across sites [default: 1000]\n"
             "--zetaMax:           the maximum of elongation rates allowed [default: 2500 per min]\n"
             "--zetaMin:           the minimum of elongation rates allowed [default: 1500 per min]\n"
-            "--zetaVec            a file contains vector to scale elongation rates. All cells share the same set of parameters [default: ""]"
+            "--zetaVec            a file contains vector to scale elongation rates. All cells share the same set of parameters [default: '']\n"
             "--cellNum, -n:       number of cells being simulated [default: 10]\n"
             "--polSize, -s:       Polymerase II size [default: 33]\n"
             "--addSpace:          Additional space in addition to RNAP size [default: 17]\n"
             "--time, -t:          Total time of simulating data in a cell [default: 0.1 min]\n"
             "--hdf5:              Record position matrix to HDF5 file for remaining number of steps specified [default: 0 steps]\n"
             "--csv:               Record position matrix to csv file for remaining number of steps specified [default: 1 step]\n"
-            "--outputDir, -d:     Directory for saving results [default: 'results']"
+            "--outputDir, -d:     Directory for saving results [default: 'results']\n"
             "--help:              Show help\n";
     exit(1);
 }
