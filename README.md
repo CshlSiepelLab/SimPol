@@ -24,12 +24,13 @@ After running for the specified time, SimPol outputs either a file in HDF5 forma
 	Fig.1 Design of SimPol (“Simulator of Polymerases”)
 </p>
 
-## Create Conda Environment
-
+## Setup Environment
 ```
-conda env create -f environment.yml
+singularity build simpol.sif Singularity
 
-conda activate simpol
+singularity shell simpol.sif
+
+source activate simpol
 ```
 
 ## Build
