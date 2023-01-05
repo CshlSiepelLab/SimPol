@@ -26,7 +26,7 @@ After running for the specified time, SimPol outputs either a file in HDF5 forma
 
 ## Setup Environment
 ```
-singularity build simpol.sif Singularity
+sudo singularity build simpol.sif Singularity
 
 singularity shell simpol.sif
 
