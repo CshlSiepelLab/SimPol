@@ -24,7 +24,7 @@ After running for the specified time, SimPol outputs either a file in HDF5 forma
 	Fig.1 Design of SimPol (“Simulator of Polymerases”)
 </p>
 
-## Option 1: Create Conda Environment
+## Create Conda Environment
 
 ```
 conda create -n simpol -c conda-forge -c anaconda
@@ -33,9 +33,6 @@ conda activate simpol
 
 conda install -c conda-forge highfive
 ```
-
-## Option 2: Use Singularity Environment
-
 
 ## Build
 
@@ -61,40 +58,42 @@ cmake --build Release/
 
 Note: Replace all instances of 'Release' with 'Debug' to build in Debug mode
 
-## Run with UGE Workload Manager Example
+## Run with UGE Workload Manager
 
 ```
 qsub -pe OpenMP 5 -cwd -b y ./Release/simPol -n 100 --csv 10
 ```
 * Note: This allocates 5 threads for the program in the OpenMP parallel environment
+* Check available parallel environments: qconf -spl
+
+## Run Locally
+
+Set Number of Threads [By default uses all available threads]
+```
+export OMP_NUM_THREADS=<number of threads to use>
+```
+
+Run in Release Mode
+```
+./Release/simPol [options]
+```
+
+Run in Debug Mode
+```
+./Debug/simPol [options]
+
+```
+
+Run program with file containing command line arguments
+```
+ ./Release/simPol $(<simPol_arguments.dat)
+ ```
+
+Pre-built debug and release executables can be found in the bin folder
 
 ## Usage
 
 ```
-Run in Release Mode: ./Release/simPol [options]
-Simulate RNA polymerase dynamics with transcription parameters.
-
-Run in Debug Mode: ./Debug/simPol [options]
-
-Debug from command line: gdb ./Debug/simPol
-	* Set breakpoint at line number: break 183
-	* Run program with arguments: r -k 100
-	* Print variable info at breakpoint: print k
-
-Debug from vscode by setting up launch.json file and installing C/C++ extension
-
-Run program with file containing command line arguments: ./Release/simPol $(<simPol_arguments.dat)
-
-Pre-built debug and release executables can be found in the bin folder
-
-	* ./bin/simPol_Debug
-
-	* ./bin/simPol_Release
-
-Set number of threads used in parallel environment:
-	* On Cluster: Run qsub with -pe OpenMP <number of threads to use>
-	* On Personal Machine: export OMP_NUM_THREADS=<number of threads to use>
-
 Options:
 	-h, --help
 		Show this help message and exit
@@ -150,8 +149,11 @@ Options:
 	--hdf5=INTEGER
 		Record position matrix to HDF5 file for remaining number of steps specified [default: 0 steps]
 
-	-csv=INTEGER
+	--csv=INTEGER
 		Record position matrix to csv file for remaining number of steps specified [default: 1 step]
+	
+	-d CHARACTER, --outputDir=CHARACTER
+		Directory for saving results [default: 'results']
 
 ```
 
