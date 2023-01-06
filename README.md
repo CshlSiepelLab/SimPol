@@ -25,17 +25,33 @@ After running for the specified time, SimPol outputs either a file in HDF5 forma
 </p>
 
 ## Setup Environment
+
+We provide two different approaches to set up the environment for SimPol, one with
+[Conda](https://docs.conda.io/projects/conda/en/stable/user-guide/getting-started.html)
+and the other with [Singularity](https://docs.sylabs.io/guides/latest/user-guide/quick_start.html#).
+Pre-built debug and release executables can be found in the bin folder
+
+### Conda
+
 ```
-sudo singularity build simpol.sif Singularity
+conda env create -f environment.yml
+
+bin/simPol_Release --help
+```
+
+### Singularity
+
+```
+singularity build --fakeroot simpol.sif Singularity
 
 singularity shell simpol.sif
 
-source activate simpol
+bin/simPol_Release --help
 ```
 
-## Build
+## Build from source
 
-There is the option to build in either debug mode with debug symbols or release mode with compiler optimizations (e.g. -O2). 
+There is the option to build in either debug mode with debug symbols or release mode with compiler optimizations (e.g. -O2).
 
 To create a build directory in release mode
 
@@ -56,14 +72,6 @@ cmake --build Release/
 ```
 
 Note: Replace all instances of 'Release' with 'Debug' to build in Debug mode
-
-## Run with UGE Workload Manager
-
-```
-qsub -pe OpenMP 5 -cwd -b y ./Release/simPol -n 100 --csv 10
-```
-* Note: This allocates 5 threads for the program in the OpenMP parallel environment
-* Check available parallel environments: qconf -spl
 
 ## Run Locally
 
@@ -88,7 +96,13 @@ Run program with file containing command line arguments
  ./Release/simPol $(<simPol_arguments.dat)
  ```
 
-Pre-built debug and release executables can be found in the bin folder
+## Run with UGE Workload Manager (within CSHL)
+
+```
+qsub -pe OpenMP 5 -cwd -b y ./Release/simPol -n 100 --csv 10
+```
+* Note: This allocates 5 threads for the program in the OpenMP parallel environment
+* Check available parallel environments: qconf -spl
 
 ## Usage
 
@@ -150,7 +164,7 @@ Options:
 
 	--csv=INTEGER
 		Record position matrix to csv file for remaining number of steps specified [default: 1 step]
-	
+
 	-d CHARACTER, --outputDir=CHARACTER
 		Directory for saving results [default: 'results']
 
@@ -167,6 +181,11 @@ After simulation, SimPol produces multiple output files:
 	* Using HighFive interface to generate HDF5 file [https://github.com/BlueBrain/HighFive](https://github.com/BlueBrain/HighFive)
 	* Uses chunking and ZLIB (deflate) compression at level 9
 5. positions/position_matrix_#.csv: CSV files containing the position matrix at a specified step
+
+## Sampling nascent RNA sequencing read counts
+
+If you prefer to simulate nascent RNA sequencing read counts in addition to the RNAP positions,
+you can also follow the tutorial in `scripts/sample_read_counts.Rmd`. 
 
 ## Citation
 Zhao, Y., Liu, L. & Siepel, A. Model-based characterization of the equilibrium dynamics of transcription initiation and promoter-proximal pausing in human cells. 2022.10.19.512929 Preprint at [bioRxiv](https://doi.org/10.1101/2022.10.19.512929) (2022).
