@@ -1,0 +1,90 @@
+---
+title: "Sampling read counts"
+author: "[Yixin Zhao](https://github.com/EasyPiPi)"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+email: "yizhao@cshl.edu"
+output: html_document
+---
+
+## Sampling read counts after running SimPol
+
+Sometimes you may want to simulate nascent RNA sequencing read counts in addition
+to getting RNAP number, because that's what we get in the real world.
+With the simulated data we got from SimPol, it's quite easy.
+Here is an example:
+
+First we load data, in this case, we simulated 20,000 cells
+and the total gene length N is 2,000. Initiation rate $\alpha$ and pause release
+rate $\beta$ are both 1 event per min.
+
+```{r, message=FALSE}
+# set the github repo as your root dir
+root_dir <- ".."
+
+cell_n <- 2e4
+kmax <- 200
+
+sample_1 <- "k50ksd25kmin17kmax200l1950a1b1z2000zsd1000zmin1500zmax2500t40n20000s33h17"
+
+total_rnap <- readLines(file.path(root_dir, "data", sample_1, "combined_cell_data.csv"))
+total_rnap <- as.integer(total_rnap[-1])
+
+N <- length(total_rnap)
+L <- N - kmax
+
+```
+
+To match our simulated read counts to reality, we need to compute a scaling factor lambda.
+One way of doing it is computing the read density based on real experiments.
+For example, we have computed the read density within gene body in _Dukler et al._
+(2017) for genes with median expression (i.e., 0.0489).
+
+If we assume the read counts following a Poisson distribution, we can then sample
+the read counts with mean equals to the RNAP frequency multiplied by lambda.
+
+```{r, message=FALSE}
+lambda <- 0.0489 / (sum(total_rnap[(kmax + 1):N]) / (L * cell_n))
+# Set seed to ensure results are reproducible
+set.seed(12345678)
+rc <- rpois(N, total_rnap / cell_n * lambda)
+gb_rc <- sum(rc[(kmax + 1):N])
+gb_rc / L
+```
+
+Note that we get read count per nucleotide here, and the simulated read density 
+within gene body is quite close to the
+real read density we observed in experiment. Usually, this is much lower than
+the RNAP density within gene body
+
+```{r, message=FALSE}
+sum(total_rnap[(kmax + 1):N]) / L
+```
+
+If we have other samples, we can also use the same lambda to scale them,
+
+```{r, message=FALSE}
+sample_2 <- "k50ksd25kmin17kmax200l1950a0.1b1z2000zsd1000zmin1500zmax2500t40n20000s33h17"
+
+total_rnap_2 <- readLines(file.path(root_dir, "data", sample_2, "combined_cell_data.csv"))
+total_rnap_2 <- as.integer(total_rnap_2[-1])
+
+rc_2 <- rpois(N, total_rnap_2 / cell_n * lambda)
+sum(rc_2[(kmax + 1):N]) / L
+```
+
+Notice now the read density is much lower, because the potential initiation rate
+$\alpha$ has decreased from 1 to 0.1 event per min .
+
+Also note here we simulate a gene only in length of 2 kb, which is much shorter
+than a typical human gene (i.e., around 20 kb). If you want a longer gene, you can 
+either simulate it in SimPol, or in many applications, if you only care about the
+total read counts, you can extrapolate the gene length as follow,
+
+```{r, message=FALSE}
+# One trick to extend gene length
+gb_rc_2 <- rpois(1, (sum(total_rnap[(kmax + 1):N]) / cell_n) * (19800 / L) * lambda)
+gb_rc_2 / 19800
+```      
+
+Now we get a much longer gene, with length = 19,800 + 200 = 20,000, and the read
+density within gene body is still close to what we observed in reality.

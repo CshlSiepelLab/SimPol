@@ -29,7 +29,6 @@ After running for the specified time, SimPol outputs either a file in HDF5 forma
 We provide two different approaches to set up the environment for SimPol, one with
 [Conda](https://docs.conda.io/projects/conda/en/stable/user-guide/getting-started.html)
 and the other with [Singularity](https://docs.sylabs.io/guides/latest/user-guide/quick_start.html#).
-
 Pre-built debug and release executables can be found in the bin folder
 
 ### Conda
@@ -182,6 +181,11 @@ After simulation, SimPol produces multiple output files:
 	* Using HighFive interface to generate HDF5 file [https://github.com/BlueBrain/HighFive](https://github.com/BlueBrain/HighFive)
 	* Uses chunking and ZLIB (deflate) compression at level 9
 5. positions/position_matrix_#.csv: CSV files containing the position matrix at a specified step
+
+## Sampling nascent RNA sequencing read counts
+
+If you prefer to simulate nascent RNA sequencing read counts in addition to the RNAP positions,
+you can also follow the tutorial in `scripts/sample_read_counts.Rmd`. 
 
 ## Citation
 Zhao, Y., Liu, L. & Siepel, A. Model-based characterization of the equilibrium dynamics of transcription initiation and promoter-proximal pausing in human cells. 2022.10.19.512929 Preprint at [bioRxiv](https://doi.org/10.1101/2022.10.19.512929) (2022).
