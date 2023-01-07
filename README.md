@@ -36,6 +36,8 @@ Pre-built debug and release executables can be found in the bin folder
 ```
 conda env create -f environment.yml
 
+conda activate simpol
+
 bin/simPol_Release --help
 ```
 
