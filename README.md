@@ -42,9 +42,9 @@ bin/simPol_Release --help
 ### Singularity
 
 ```
-singularity build --fakeroot simpol.sif Singularity
+singularity build --fakeroot simPol.sif Singularity
 
-singularity shell simpol.sif
+singularity shell simPol.sif
 
 bin/simPol_Release --help
 ```
@@ -185,7 +185,7 @@ After simulation, SimPol produces multiple output files:
 ## Sampling nascent RNA sequencing read counts
 
 If you prefer to simulate nascent RNA sequencing read counts in addition to the RNAP positions,
-you can also follow the tutorial in `scripts/sample_read_counts.Rmd`. 
+you can also follow the tutorial in `scripts/sample_read_counts.Rmd`.
 
 ## Citation
 Zhao, Y., Liu, L. & Siepel, A. Model-based characterization of the equilibrium dynamics of transcription initiation and promoter-proximal pausing in human cells. 2022.10.19.512929 Preprint at [bioRxiv](https://doi.org/10.1101/2022.10.19.512929) (2022).
