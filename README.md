@@ -63,8 +63,6 @@ conda env create -f environment.yml
 
 conda activate simpol
 
-export CMAKE_PREFIX_PATH=$CONDA_PREFIX
-
 # Follow commands below to build from source and run
 ```
 
