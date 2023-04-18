@@ -26,7 +26,7 @@ After running for the specified time, SimPol outputs either a file in HDF5 forma
 
 ## Setup Environment
 
-We provide three different approaches to set up the environment for SimPol, using either [Singularity](https://docs.sylabs.io/guides/latest/user-guide/quick_start.html#) or [Conda](https://docs.conda.io/projects/conda/en/stable/user-guide/getting-started.html) or [Docker] (https://docs.docker.com/get-started/). Pre-built debug and release executables can be found in the bin folder
+We provide three different approaches to set up the environment for SimPol, using either [Singularity](https://docs.sylabs.io/guides/latest/user-guide/quick_start.html#) or [Conda](https://docs.conda.io/projects/conda/en/stable/user-guide/getting-started.html) or [Docker](https://docs.docker.com/get-started/). Pre-built debug and release executables can be found in the bin folder
 
 ### Singularity
 
