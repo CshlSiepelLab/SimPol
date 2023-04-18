@@ -65,7 +65,7 @@ conda activate simpol
 
 export CMAKE_PREFIX_PATH=$CONDA_PREFIX
 
-./bin/simPol_Release --help
+# Follow commands below to build from source and run
 ```
 
 ## Build from source
