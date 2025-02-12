@@ -26,10 +26,35 @@ After running for the specified time, SimPol outputs either a file in HDF5 forma
 
 ## Setup Environment
 
-We provide two different approaches to set up the environment for SimPol, one with
-[Conda](https://docs.conda.io/projects/conda/en/stable/user-guide/getting-started.html)
-and the other with [Singularity](https://docs.sylabs.io/guides/latest/user-guide/quick_start.html#).
-Pre-built debug and release executables can be found in the bin folder
+We provide three different approaches to set up the environment for SimPol, using either [Singularity](https://docs.sylabs.io/guides/latest/user-guide/quick_start.html#) or [Conda](https://docs.conda.io/projects/conda/en/stable/user-guide/getting-started.html) or [Docker](https://docs.docker.com/get-started/). Pre-built debug and release executables can be found in the bin folder
+
+### Singularity
+
+```
+wget http://compgen.cshl.edu/simpol/simpol.sif
+
+singularity shell simpol.sif
+
+source activate simpol
+
+./bin/simPol_Release --help
+```
+
+Note: Use command below to build container from Singularity file
+```
+singularity build --fakeroot simpol.sif Singularity
+```
+
+### Docker
+```
+docker pull cshlhassett/simpol
+
+sudo docker run -it cshlhassett/simpol
+
+source activate simpol
+
+./SimPolv2/bin/simPol_Release --help
+```
 
 ### Conda
 
@@ -38,17 +63,7 @@ conda env create -f environment.yml
 
 conda activate simpol
 
-bin/simPol_Release --help
-```
-
-### Singularity
-
-```
-singularity build --fakeroot simPol.sif Singularity
-
-singularity shell simPol.sif
-
-bin/simPol_Release --help
+# Follow commands below to build from source and run
 ```
 
 ## Build from source
